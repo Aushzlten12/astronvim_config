@@ -1,10 +1,98 @@
+local utils = require "astronvim.utils"
 local leet_arg = "leetcode.nvim"
+
 return {
   -- You can also add new plugins here as well:
   -- Add plugins, the lazy syntax
 
   -- "andweeb/presence.nvim",
   -- Neotest
+  --
+  {
+    "AstroNvim/astroui",
+    ---@type AstroUIOpts
+    opts = {
+      icons = {
+        ActiveLSP = "",
+        ActiveTS = " ",
+        BufferClose = "",
+        DapBreakpoint = "",
+        DapBreakpointCondition = "",
+        DapBreakpointRejected = "",
+        DapLogPoint = "",
+        DapStopped = "",
+        DefaultFile = "",
+        Diagnostic = "",
+        DiagnosticError = "",
+        DiagnosticHint = "",
+        DiagnosticInfo = "",
+        DiagnosticWarn = "",
+        Ellipsis = "",
+        FileModified = "",
+        FileReadOnly = "",
+        FoldClosed = "",
+        FoldOpened = "",
+        FolderClosed = "",
+        FolderEmpty = "",
+        FolderOpen = "",
+        Git = "",
+        GitAdd = "",
+        GitBranch = "",
+        GitChange = "",
+        GitConflict = "",
+        GitDelete = "",
+        GitIgnored = "",
+        GitRenamed = "",
+        GitStaged = "",
+        GitUnstaged = "",
+        GitUntracked = "",
+        LSPLoaded = "",
+        LSPLoading1 = "",
+        LSPLoading2 = "",
+        LSPLoading3 = "",
+        MacroRecording = "",
+        Paste = "",
+        Search = "",
+        Selected = "",
+        TabClose = "",
+      },
+    },
+  },
+  {
+    "onsails/lspkind.nvim",
+    opts = function(_, opts)
+      -- use codicons preset
+      opts.preset = "codicons"
+      -- set some missing symbol types
+      opts.symbol_map = {
+        Text = " ",
+        Method = " ",
+        Function = " ",
+        Constructor = " ",
+        Field = " ",
+        Variable = " ",
+        Class = " ",
+        Interface = " ",
+        Module = " ",
+        Property = " ",
+        Unit = " ",
+        Value = " ",
+        Enum = " ",
+        Keyword = " ",
+        Snippet = " ",
+        Color = " ",
+        File = " ",
+        Reference = " ",
+        Folder = " ",
+        EnumMember = " ",
+        Constant = " ",
+        Struct = " ",
+        Event = " ",
+        Operator = " ",
+        TypeParameter = " ",
+      }
+    end,
+  },
   {
     "nvim-neotest/neotest",
     ft = { "go", "rust", "python" },
@@ -70,11 +158,242 @@ return {
       { "<leader>TS", function() require("neotest").run.stop() end, desc = "Stop" },
     },
   },
+  -- Java
   {
-    "catppuccin/nvim",
-    optional = true,
-    ---@type CatppuccinOptions
-    opts = { integrations = { neotest = true } },
+    {
+      "nvim-treesitter/nvim-treesitter",
+      opts = function(_, opts)
+        if opts.ensure_installed ~= "all" then
+          opts.ensure_installed = utils.list_insert_unique(opts.ensure_installed, { "java", "html" })
+        end
+      end,
+    },
+    {
+      "williamboman/mason-lspconfig.nvim",
+      opts = function(_, opts)
+        opts.ensure_installed = utils.list_insert_unique(opts.ensure_installed, { "jdtls", "lemminx" })
+      end,
+    },
+
+    {
+      "jay-babu/mason-null-ls.nvim",
+      opts = function(_, opts)
+        opts.ensure_installed = utils.list_insert_unique(opts.ensure_installed, "google-java-format")
+      end,
+    },
+
+    {
+      "jay-babu/mason-nvim-dap.nvim",
+      opts = function(_, opts)
+        opts.ensure_installed = utils.list_insert_unique(opts.ensure_installed, { "javadbg", "javatest" })
+      end,
+    },
+
+    {
+      "mfussenegger/nvim-jdtls",
+      ft = { "java" },
+      init = function() astronvim.lsp.skip_setup = utils.list_insert_unique(astronvim.lsp.skip_setup, "jdtls") end,
+      dependencies = { "williamboman/mason-lspconfig.nvim" },
+      opts = function(_, opts)
+        -- use this function notation to build some variables
+        local root_markers = { ".git", "mvnw", "gradlew", "pom.xml", "build.gradle", ".project" }
+        local root_dir = require("jdtls.setup").find_root(root_markers)
+        -- calculate workspace dir
+        local project_name = vim.fn.fnamemodify(vim.fn.getcwd(), ":p:h:t")
+        local workspace_dir = vim.fn.stdpath "data" .. "/site/java/workspace-root/" .. project_name
+        os.execute("mkdir " .. workspace_dir)
+
+        -- get the current OS
+        local os
+        if vim.fn.has "mac" == 1 then
+          os = "mac"
+        elseif vim.fn.has "unix" == 1 then
+          os = "linux"
+        elseif vim.fn.has "win32" == 1 then
+          os = "win"
+        end
+
+        -- ensure that OS is valid
+        if not os or os == "" then
+          require("astronvim.utils").notify("jdtls: Could not detect valid OS", vim.log.levels.ERROR)
+        end
+
+        local defaults = {
+          cmd = {
+            "java",
+            "-Declipse.application=org.eclipse.jdt.ls.core.id1",
+            "-Dosgi.bundles.defaultStartLevel=4",
+            "-Declipse.product=org.eclipse.jdt.ls.core.product",
+            "-Dlog.protocol=true",
+            "-Dlog.level=ALL",
+            "-javaagent:" .. vim.fn.expand "$MASON/share/jdtls/lombok.jar",
+            "-Xms1g",
+            "--add-modules=ALL-SYSTEM",
+            "--add-opens",
+            "java.base/java.util=ALL-UNNAMED",
+            "--add-opens",
+            "java.base/java.lang=ALL-UNNAMED",
+            "-jar",
+            vim.fn.expand "$MASON/share/jdtls/plugins/org.eclipse.equinox.launcher.jar",
+            "-configuration",
+            vim.fn.expand "$MASON/share/jdtls/config",
+            "-data",
+            workspace_dir,
+          },
+          root_dir = root_dir,
+          settings = {
+            java = {
+              eclipse = {
+                downloadSources = true,
+              },
+              configuration = {
+                updateBuildConfiguration = "interactive",
+              },
+              maven = {
+                downloadSources = true,
+              },
+
+              implementationsCodeLens = {
+                enabled = true,
+              },
+              referencesCodeLens = {
+                enabled = true,
+              },
+            },
+            signatureHelp = {
+
+              enabled = true,
+            },
+            completion = {
+              favoriteStaticMembers = {
+                "org.hamcrest.MatcherAssert.assertThat",
+                "org.hamcrest.Matchers.*",
+                "org.hamcrest.CoreMatchers.*",
+                "org.junit.jupiter.api.Assertions.*",
+                "java.util.Objects.requireNonNull",
+                "java.util.Objects.requireNonNullElse",
+                "org.mockito.Mockito.*",
+              },
+            },
+            sources = {
+              organizeImports = {
+                starThreshold = 9999,
+                staticStarThreshold = 9999,
+              },
+            },
+          },
+          init_options = {
+            bundles = {
+              vim.fn.expand "$MASON/share/java-debug-adapter/com.microsoft.java.debug.plugin.jar",
+              -- unpack remaining bundles
+              (table.unpack or unpack)(vim.split(vim.fn.glob "$MASON/share/java-test/*.jar", "\n", {})),
+            },
+          },
+          handlers = {
+            ["$/progress"] = function()
+              -- disable progress updates.
+            end,
+          },
+          filetypes = { "java" },
+          on_attach = function(client, bufnr)
+            require("jdtls").setup_dap { hotcodereplace = "auto" }
+            require("astronvim.utils.lsp").on_attach(client, bufnr)
+          end,
+        }
+
+        -- TODO: add overwrite for on_attach
+
+        -- ensure that table is valid
+        if not opts then opts = {} end
+
+        -- extend the current table with the defaults keeping options in the user opts
+        -- this allows users to pass opts through an opts table in community.lua
+        opts = vim.tbl_deep_extend("keep", opts, defaults)
+
+        -- send opts to config
+        return opts
+      end,
+      config = function(_, opts)
+        -- setup autocmd on filetype detect java
+        vim.api.nvim_create_autocmd("Filetype", {
+          pattern = "java", -- autocmd to start jdtls
+          callback = function()
+            if opts.root_dir and opts.root_dir ~= "" then
+              require("jdtls").start_or_attach(opts)
+            -- require('jdtls.dap').setup_dap_main_class_configs()
+            else
+              require("astronvim.utils").notify(
+                "jdtls: root_dir not found. Please specify a root marker",
+                vim.log.levels.ERROR
+              )
+            end
+          end,
+        })
+        -- create autocmd to load main class configs on LspAttach.
+        -- This ensures that the LSP is fully attached.
+        -- See https://github.com/mfussenegger/nvim-jdtls#nvim-dap-configuration
+        vim.api.nvim_create_autocmd("LspAttach", {
+          pattern = "*.java",
+          callback = function(args)
+            local client = vim.lsp.get_client_by_id(args.data.client_id)
+            -- ensure that only the jdtls client is activated
+            if client.name == "jdtls" then require("jdtls.dap").setup_dap_main_class_configs() end
+          end,
+        })
+      end,
+    },
+  },
+  -- C++
+  {
+    {
+      "nvim-treesitter/nvim-treesitter",
+      opts = function(_, opts)
+        if opts.ensure_installed ~= "all" then
+          opts.ensure_installed =
+            utils.list_insert_unique(opts.ensure_installed, { "cpp", "c", "objc", "cuda", "proto" })
+        end
+      end,
+    },
+    {
+      "williamboman/mason-lspconfig.nvim",
+      opts = function(_, opts) opts.ensure_installed = utils.list_insert_unique(opts.ensure_installed, "clangd") end,
+    },
+    {
+      "p00f/clangd_extensions.nvim",
+      init = function()
+        -- load clangd extensions when clangd attaches
+        local augroup = vim.api.nvim_create_augroup("clangd_extensions", { clear = true })
+        vim.api.nvim_create_autocmd("LspAttach", {
+          group = augroup,
+          desc = "Load clangd_extensions with clangd",
+          callback = function(args)
+            if assert(vim.lsp.get_client_by_id(args.data.client_id)).name == "clangd" then
+              require "clangd_extensions"
+              vim.api.nvim_del_augroup_by_id(augroup)
+            end
+          end,
+        })
+      end,
+    },
+  },
+  -- Ruby
+  {
+    {
+      "nvim-treesitter/nvim-treesitter",
+      opts = function(_, opts)
+        if opts.ensure_installed ~= "all" then
+          opts.ensure_installed = utils.list_insert_unique(opts.ensure_installed, "ruby")
+        end
+      end,
+    },
+    {
+      "williamboman/mason-lspconfig.nvim",
+      opts = function(_, opts) opts.ensure_installed = utils.list_insert_unique(opts.ensure_installed, "solargraph") end,
+    },
+    {
+      "mfussenegger/nvim-dap",
+      dependencies = { "suketa/nvim-dap-ruby", config = true },
+    },
   },
   {
     "cameron-wags/rainbow_csv.nvim",
@@ -246,7 +565,7 @@ return {
       -- optional
       "nvim-treesitter/nvim-treesitter",
       "rcarriga/nvim-notify",
-      "nvim-tree/nvim-web-devicons",
+      "DaikyXendo/nvim-web-devicons",
     },
     lazy = leet_arg ~= vim.fn.argv()[1],
     cmd = "Leet",
@@ -269,7 +588,9 @@ return {
         cache = vim.fn.stdpath "cache" .. "/leetcode",
       },
 
-      plugins = {},
+      plugins = {
+        non_standalone = true,
+      },
 
       ---@type boolean
       logging = true,
@@ -483,361 +804,411 @@ return {
       on_highlights = function(highlights, colors) end,
     },
   },
+  -- NOTE: THEMES
+  {
+    "rebelot/kanagawa.nvim",
+    name = "kanagawa",
+    opts = {
+      compile = true, -- enable compiling the colorscheme
+      undercurl = true, -- enable undercurls
+      commentStyle = { italic = true },
+      functionStyle = {},
+      keywordStyle = { italic = true },
+      statementStyle = { bold = true },
+      typeStyle = {},
+      transparent = false, -- do not set background color
+      dimInactive = false, -- dim inactive window `:h hl-NormalNC`
+      terminalColors = true, -- define vim.g.terminal_color_{0,17}
+      colors = { -- add/modify theme and palette colors
+        palette = {},
+        theme = { wave = {}, lotus = {}, dragon = {}, all = {} },
+      },
+      overrides = function(colors) -- add/modify highlights
+        return {}
+      end,
+      theme = "wave", -- Load "wave" theme when 'background' option is not set
+      background = { -- map the value of 'background' option to a theme
+        dark = "wave", -- try "dragon" !
+        light = "lotus",
+      },
+    },
+  },
   {
     "catppuccin/nvim",
     name = "catppuccin",
-    priority = 1000,
     lazy = false,
-    opts = {
-      flavour = "mocha",
-      background = { -- :h background
-        light = "latte",
-        dark = "mocha",
-      },
-      latte = {
-        rosewater = "#c14a4a",
-        flamingo = "#c14a4a",
-        red = "#c14a4a",
-        maroon = "#c14a4a",
-        pink = "#945e80",
-        mauve = "#945e80",
-        peach = "#c35e0a",
-        yellow = "#b47109",
-        green = "#6c782e",
-        teal = "#4c7a5d",
-        sky = "#4c7a5d",
-        sapphire = "#4c7a5d",
-        blue = "#45707a",
-        lavender = "#45707a",
-        text = "#654735",
-        subtext1 = "#73503c",
-        subtext0 = "#805942",
-        overlay2 = "#8c6249",
-        overlay1 = "#8c856d",
-        overlay0 = "#a69d81",
-        surface2 = "#bfb695",
-        surface1 = "#d1c7a3",
-        surface0 = "#e3dec3",
-        base = "#f9f5d7",
-        mantle = "#f0ebce",
-        crust = "#e8e3c8",
-      },
-      color_overrides = {
-        mocha = {
-          rosewater = "#ea6962",
-          flamingo = "#ea6962",
-          red = "#ea6962",
-          maroon = "#ea6962",
-          pink = "#d3869b",
-          mauve = "#d3869b",
-          peach = "#e78a4e",
-          yellow = "#d8a657",
-          green = "#a9b665",
-          teal = "#89b482",
-          sky = "#89b482",
-          sapphire = "#89b482",
-          blue = "#7daea3",
-          lavender = "#7daea3",
-          text = "#ebdbb2",
-          subtext1 = "#d5c4a1",
-          subtext0 = "#bdae93",
-          overlay2 = "#a89984",
-          overlay1 = "#928374",
-          overlay0 = "#595959",
-          surface2 = "#4d4d4d",
-          surface1 = "#404040",
-          surface0 = "#292929",
-          base = "#1d2021",
-          mantle = "#191b1c",
-          crust = "#141617",
+    priority = 1000,
+    config = function()
+      require("catppuccin").setup {
+        background = {
+          light = "latte",
+          dark = "mocha",
         },
-      },
-      transparent_background = false,
-      show_end_of_buffer = false,
-      integration_default = false,
-      integrations = {
-        barbecue = { dim_dirname = true, bold_basename = true, dim_context = false, alt_background = false },
-        cmp = true,
-        gitsigns = true,
-        hop = true,
-        illuminate = { enabled = true },
-        native_lsp = { enabled = true, inlay_hints = { background = true } },
-        neogit = true,
-        neotree = true,
-        semantic_tokens = true,
-        treesitter = true,
-        treesitter_context = true,
-        vimwiki = true,
-        which_key = true,
-      },
-      highlight_overrides = {
-        all = function(colors)
-          return {
-            CmpItemMenu = { fg = colors.surface2 },
-            CursorLineNr = { fg = colors.text },
-            FloatBorder = { bg = colors.base, fg = colors.surface0 },
-            GitSignsChange = { fg = colors.peach },
-            LineNr = { fg = colors.overlay0 },
-            LspInfoBorder = { link = "FloatBorder" },
-            NeoTreeDirectoryIcon = { fg = colors.subtext1 },
-            NeoTreeDirectoryName = { fg = colors.subtext1 },
-            NeoTreeFloatBorder = { link = "TelescopeResultsBorder" },
-            NeoTreeGitConflict = { fg = colors.red },
-            NeoTreeGitDeleted = { fg = colors.red },
-            NeoTreeGitIgnored = { fg = colors.overlay0 },
-            NeoTreeGitModified = { fg = colors.peach },
-            NeoTreeGitStaged = { fg = colors.green },
-            NeoTreeGitUnstaged = { fg = colors.red },
-            NeoTreeGitUntracked = { fg = colors.green },
-            NeoTreeIndent = { fg = colors.surface1 },
-            NeoTreeNormal = { bg = colors.mantle },
-            NeoTreeNormalNC = { bg = colors.mantle },
-            NeoTreeRootName = { fg = colors.subtext1, style = { "bold" } },
-            NeoTreeTabActive = { fg = colors.text, bg = colors.mantle },
-            NeoTreeTabInactive = { fg = colors.surface2, bg = colors.crust },
-            NeoTreeTabSeparatorActive = { fg = colors.mantle, bg = colors.mantle },
-            NeoTreeTabSeparatorInactive = { fg = colors.crust, bg = colors.crust },
-            NeoTreeWinSeparator = { fg = colors.base, bg = colors.base },
-            NormalFloat = { bg = colors.base },
-            Pmenu = { bg = colors.mantle, fg = "" },
-            PmenuSel = { bg = colors.surface0, fg = "" },
-            TelescopePreviewBorder = { bg = colors.crust, fg = colors.crust },
-            TelescopePreviewNormal = { bg = colors.crust },
-            TelescopePreviewTitle = { fg = colors.crust, bg = colors.crust },
-            TelescopePromptBorder = { bg = colors.surface0, fg = colors.surface0 },
-            TelescopePromptCounter = { fg = colors.mauve, style = { "bold" } },
-            TelescopePromptNormal = { bg = colors.surface0 },
-            TelescopePromptPrefix = { bg = colors.surface0 },
-            TelescopePromptTitle = { fg = colors.surface0, bg = colors.surface0 },
-            TelescopeResultsBorder = { bg = colors.mantle, fg = colors.mantle },
-            TelescopeResultsNormal = { bg = colors.mantle },
-            TelescopeResultsTitle = { fg = colors.mantle, bg = colors.mantle },
-            TelescopeSelection = { bg = colors.surface0 },
-            VertSplit = { bg = colors.base, fg = colors.surface0 },
-            WhichKeyFloat = { bg = colors.mantle },
-            YankHighlight = { bg = colors.surface2 },
-            FidgetTask = { fg = colors.subtext2 },
-            FidgetTitle = { fg = colors.peach },
+        color_overrides = {
+          mocha = {
+            rosewater = "#F5B8AB",
+            flamingo = "#F29D9D",
+            pink = "#AD6FF7",
+            mauve = "#FF8F40",
+            red = "#E66767",
+            maroon = "#EB788B",
+            peach = "#FAB770",
+            yellow = "#FACA64",
+            green = "#70CF67",
+            teal = "#4CD4BD",
+            sky = "#61BDFF",
+            sapphire = "#4BA8FA",
+            blue = "#00BFFF",
+            lavender = "#00BBCC",
+            text = "#C1C9E6",
+            subtext1 = "#A3AAC2",
+            subtext0 = "#8E94AB",
+            overlay2 = "#7D8296",
+            overlay1 = "#676B80",
+            overlay0 = "#464957",
+            surface2 = "#3A3D4A",
+            surface1 = "#2F313D",
+            surface0 = "#1D1E29",
+            base = "#0b0b12",
+            mantle = "#11111a",
+            crust = "#191926",
+          },
+          frappe = {
+            rosewater = "#eb7a73",
+            flamingo = "#eb7a73",
+            red = "#eb7a73",
+            maroon = "#eb7a73",
+            pink = "#e396a4",
+            mauve = "#e396a4",
+            peach = "#e89a5e",
+            yellow = "#E7B84C",
+            green = "#7cb66a",
+            teal = "#99c792",
+            sky = "#99c792",
+            sapphire = "#99c792",
+            blue = "#8dbba3",
+            lavender = "#8dbba3",
+            text = "#f1e4c2",
+            subtext1 = "#e5d5b1",
+            subtext0 = "#c5bda3",
+            overlay2 = "#b8a994",
+            overlay1 = "#a39284",
+            overlay0 = "#656565",
+            surface2 = "#5d5d5d",
+            surface1 = "#505050",
+            surface0 = "#393939",
+            base = "#1d2224",
+            mantle = "#1d2224",
+            crust = "#1f2223",
+          },
+        },
+        transparent_background = false,
+        show_end_of_buffer = false,
+        integration_default = false,
+        integrations = {
+          barbecue = { dim_dirname = true, bold_basename = true, dim_context = false, alt_background = false },
+          cmp = true,
+          gitsigns = true,
+          hop = true,
+          illuminate = { enabled = true },
+          native_lsp = { enabled = true, inlay_hints = { background = true } },
+          neogit = true,
+          neotree = true,
+          semantic_tokens = true,
+          treesitter = true,
+          treesitter_context = true,
+          vimwiki = true,
+          which_key = true,
+        },
+        highlight_overrides = {
+          all = function(colors)
+            return {
+              CmpItemMenu = { fg = colors.surface2 },
+              FloatBorder = { bg = colors.base, fg = colors.subtext1 }, -- colors.surface0 }, difficult to see
+              GitSignsChange = { fg = colors.peach },
+              LineNr = { fg = colors.overlay0 },
+              LspInfoBorder = { link = "FloatBorder" },
+              NeoTreeDirectoryIcon = { fg = colors.subtext1 },
+              NeoTreeDirectoryName = { fg = colors.subtext1 },
+              NeoTreeFloatBorder = { bg = colors.mantle, fg = colors.mantle },
+              NeoTreeGitConflict = { fg = colors.red },
+              NeoTreeGitDeleted = { fg = colors.red },
+              NeoTreeGitIgnored = { fg = colors.overlay0 },
+              NeoTreeGitModified = { fg = colors.peach },
+              NeoTreeGitStaged = { fg = colors.green },
+              NeoTreeGitUnstaged = { fg = colors.red },
+              NeoTreeGitUntracked = { fg = colors.green },
+              NeoTreeIndent = { fg = colors.surface1 },
+              NeoTreeNormal = { bg = colors.mantle },
+              NeoTreeNormalNC = { bg = colors.mantle },
+              NeoTreeRootName = { fg = colors.subtext1, style = { "bold" } },
+              NeoTreeTabActive = { fg = colors.text, bg = colors.mantle },
+              NeoTreeTabInactive = { fg = colors.surface2, bg = colors.crust },
+              NeoTreeTabSeparatorActive = { fg = colors.mantle, bg = colors.mantle },
+              NeoTreeTabSeparatorInactive = { fg = colors.crust, bg = colors.crust },
+              NeoTreeWinSeparator = { fg = colors.surface1, bg = colors.base },
+              NormalFloat = { bg = colors.base },
+              Pmenu = { bg = colors.mantle, fg = "" },
+              -- telescope prompt
+              TelescopePromptTitle = { fg = colors.mantle, bg = "#39fd9c", style = { "bold" } },
+              TelescopePromptCounter = { fg = colors.red, style = { "bold" } },
+              TelescopePromptBorder = { bg = colors.base },
+              -- telescope results
+              TelescopeResultsTitle = { link = "TelescopePromptTitle" },
+              TelescopeResultsBorder = { link = "TelescopePromptBorder" },
+              -- telescope preview
+              TelescopePreviewTitle = { link = "TelescopePromptTitle" },
+              TelescopePreviewBorder = { link = "TelescopePromptBorder" },
+              VertSplit = { bg = colors.base, fg = colors.surface0 },
+              WhichKeyFloat = { bg = colors.mantle },
+              YankHighlight = { bg = colors.surface2 },
+              FidgetTask = { fg = colors.subtext2 },
+              FidgetTitle = { fg = colors.peach },
 
-            IblIndent = { fg = colors.surface0 },
-            IblScope = { fg = colors.overlay0 },
+              IblIndent = { fg = colors.surface0 },
+              IblScope = { fg = colors.overlay0 },
 
-            Boolean = { fg = colors.mauve },
-            Number = { fg = colors.mauve },
-            Float = { fg = colors.mauve },
+              Boolean = { fg = colors.mauve },
+              Number = { fg = colors.mauve },
+              Float = { fg = colors.mauve },
 
-            PreProc = { fg = colors.mauve },
-            PreCondit = { fg = colors.mauve },
-            Include = { fg = colors.mauve },
-            Define = { fg = colors.mauve },
-            Conditional = { fg = colors.red },
-            Repeat = { fg = colors.red },
-            Keyword = { fg = colors.red },
-            Typedef = { fg = colors.red },
-            Exception = { fg = colors.red },
-            Statement = { fg = colors.red },
+              PreProc = { fg = colors.mauve },
+              PreCondit = { fg = colors.mauve },
+              Include = { fg = colors.mauve },
+              Define = { fg = colors.mauve },
+              Conditional = { fg = colors.red },
+              Repeat = { fg = colors.red },
+              Keyword = { fg = colors.red },
+              Typedef = { fg = colors.red },
+              Exception = { fg = colors.red },
+              Statement = { fg = colors.red },
 
-            Error = { fg = colors.red },
-            StorageClass = { fg = colors.peach },
-            Tag = { fg = colors.peach },
-            Label = { fg = colors.peach },
-            Structure = { fg = colors.peach },
-            Operator = { fg = colors.peach },
-            Title = { fg = colors.peach },
-            Special = { fg = colors.yellow },
-            SpecialChar = { fg = colors.yellow },
-            Type = { fg = colors.yellow, style = { "bold" } },
-            Function = { fg = colors.green, style = { "bold" } },
-            Delimiter = { fg = colors.subtext2 },
-            Ignore = { fg = colors.subtext2 },
-            Macro = { fg = colors.teal },
+              Error = { fg = colors.red },
+              StorageClass = { fg = colors.peach },
+              Tag = { fg = colors.peach },
+              Label = { fg = colors.peach },
+              Structure = { fg = colors.peach },
+              Operator = { fg = colors.sapphire },
+              Title = { fg = colors.peach },
+              Special = { fg = colors.yellow },
+              SpecialChar = { fg = colors.yellow },
+              Type = { fg = colors.yellow, style = { "bold" } },
+              Function = { fg = colors.green, style = { "bold" } },
+              Delimiter = { fg = colors.subtext2 },
+              Ignore = { fg = colors.subtext2 },
+              Macro = { fg = colors.teal },
 
-            TSAnnotation = { fg = colors.mauve },
-            TSAttribute = { fg = colors.mauve },
-            TSBoolean = { fg = colors.mauve },
-            TSCharacter = { fg = colors.teal },
-            TSCharacterSpecial = { link = "SpecialChar" },
-            TSComment = { link = "Comment" },
-            TSConditional = { fg = colors.red },
-            TSConstBuiltin = { fg = colors.mauve },
-            TSConstMacro = { fg = colors.mauve },
-            TSConstant = { fg = colors.text },
-            TSConstructor = { fg = colors.green },
-            TSDebug = { link = "Debug" },
-            TSDefine = { link = "Define" },
-            TSEnvironment = { link = "Macro" },
-            TSEnvironmentName = { link = "Type" },
-            TSError = { link = "Error" },
-            TSException = { fg = colors.red },
-            TSField = { fg = colors.blue },
-            TSFloat = { fg = colors.mauve },
-            TSFuncBuiltin = { fg = colors.green },
-            TSFuncMacro = { fg = colors.green },
-            TSFunction = { fg = colors.green },
-            TSFunctionCall = { fg = colors.green },
-            TSInclude = { fg = colors.red },
-            TSKeyword = { fg = colors.red },
-            TSKeywordFunction = { fg = colors.red },
-            TSKeywordOperator = { fg = colors.peach },
-            TSKeywordReturn = { fg = colors.red },
-            TSLabel = { fg = colors.peach },
-            TSLiteral = { link = "String" },
-            TSMath = { fg = colors.blue },
-            TSMethod = { fg = colors.green },
-            TSMethodCall = { fg = colors.green },
-            TSNamespace = { fg = colors.yellow },
-            TSNone = { fg = colors.text },
-            TSNumber = { fg = colors.mauve },
-            TSOperator = { fg = colors.peach },
-            TSParameter = { fg = colors.text },
-            TSParameterReference = { fg = colors.text },
-            TSPreProc = { link = "PreProc" },
-            TSProperty = { fg = colors.blue },
-            TSPunctBracket = { fg = colors.text },
-            TSPunctDelimiter = { link = "Delimiter" },
-            TSPunctSpecial = { fg = colors.blue },
-            TSRepeat = { fg = colors.red },
-            TSStorageClass = { fg = colors.peach },
-            TSStorageClassLifetime = { fg = colors.peach },
-            TSStrike = { fg = colors.subtext2 },
-            TSString = { fg = colors.teal },
-            TSStringEscape = { fg = colors.green },
-            TSStringRegex = { fg = colors.green },
-            TSStringSpecial = { link = "SpecialChar" },
-            TSSymbol = { fg = colors.text },
-            TSTag = { fg = colors.peach },
-            TSTagAttribute = { fg = colors.green },
-            TSTagDelimiter = { fg = colors.green },
-            TSText = { fg = colors.green },
-            TSTextReference = { link = "Constant" },
-            TSTitle = { link = "Title" },
-            TSTodo = { link = "Todo" },
-            TSType = { fg = colors.yellow, style = { "bold" } },
-            TSTypeBuiltin = { fg = colors.yellow, style = { "bold" } },
-            TSTypeDefinition = { fg = colors.yellow, style = { "bold" } },
-            TSTypeQualifier = { fg = colors.peach, style = { "bold" } },
-            TSURI = { fg = colors.blue },
-            TSVariable = { fg = colors.text },
-            TSVariableBuiltin = { fg = colors.mauve },
+              TSAnnotation = { fg = colors.mauve },
+              TSAttribute = { fg = colors.mauve },
+              TSBoolean = { fg = colors.mauve },
+              TSCharacter = { fg = colors.teal },
+              TSCharacterSpecial = { link = "SpecialChar" },
+              TSComment = { link = "Comment" },
+              TSConditional = { fg = colors.red },
+              TSConstBuiltin = { fg = colors.mauve },
+              TSConstMacro = { fg = colors.mauve },
+              TSConstant = { fg = colors.rosewater },
+              TSConstructor = { fg = colors.sky },
+              TSDebug = { link = "Debug" },
+              TSDefine = { link = "Define" },
+              TSEnvironment = { link = "Macro" },
+              TSEnvironmentName = { link = "Type" },
+              TSError = { link = "Error" },
+              TSException = { fg = colors.red },
+              TSField = { fg = colors.blue },
+              TSFloat = { fg = colors.mauve },
+              TSFuncBuiltin = { fg = colors.green },
+              TSFuncMacro = { fg = colors.sky },
+              TSFunction = { fg = colors.green },
+              TSFunctionCall = { fg = colors.green },
+              TSInclude = { fg = colors.red },
+              TSKeyword = { fg = colors.red },
+              TSKeywordFunction = { fg = colors.red },
+              TSKeywordOperator = { fg = colors.sapphire },
+              TSKeywordReturn = { fg = colors.red },
+              TSLabel = { fg = colors.peach },
+              TSLiteral = { link = "String" },
+              TSMath = { fg = colors.blue },
+              TSMethod = { fg = colors.green },
+              TSMethodCall = { fg = colors.green },
+              TSNamespace = { fg = colors.yellow },
+              TSNone = { fg = colors.text },
+              TSNumber = { fg = colors.mauve },
+              -- TSOperator = { fg = colors.sapphire },
+              TSOperator = { fg = colors.peach },
+              TSParameter = { fg = colors.pink },
+              TSParameterReference = { fg = colors.text },
+              TSPreProc = { link = "PreProc" },
+              TSProperty = { fg = colors.blue },
+              TSPunctBracket = { fg = colors.text },
+              TSPunctDelimiter = { link = "Delimiter" },
+              TSPunctSpecial = { fg = colors.blue },
+              TSRepeat = { fg = colors.red },
+              TSStorageClass = { fg = colors.peach },
+              TSStorageClassLifetime = { fg = colors.peach },
+              TSStrike = { fg = colors.subtext2 },
+              TSString = { fg = colors.peach },
+              TSStringEscape = { fg = colors.green },
+              TSStringRegex = { fg = colors.green },
+              TSStringSpecial = { link = "SpecialChar" },
+              TSSymbol = { fg = colors.text },
+              TSTag = { fg = colors.peach },
+              TSTagAttribute = { fg = colors.rosewater },
+              TSTagDelimiter = { fg = colors.rosewater },
+              TSText = { fg = colors.rosewater },
+              TSTextReference = { link = "Constant" },
+              TSTitle = { link = "Title" },
+              TSTodo = { link = "Todo" },
+              TSType = { fg = colors.yellow, style = { "bold" } },
+              TSTypeBuiltin = { fg = colors.yellow, style = { "bold" } },
+              TSTypeDefinition = { fg = colors.yellow, style = { "bold" } },
+              TSTypeQualifier = { fg = colors.peach, style = { "bold" } },
+              TSURI = { fg = colors.blue },
+              TSVariable = { fg = colors.flamingo },
+              TSVariableBuiltin = { fg = colors.mauve },
 
-            ["@annotation"] = { link = "TSAnnotation" },
-            ["@attribute"] = { link = "TSAttribute" },
-            ["@boolean"] = { link = "TSBoolean" },
-            ["@character"] = { link = "TSCharacter" },
-            ["@character.special"] = { link = "TSCharacterSpecial" },
-            ["@comment"] = { link = "TSComment" },
-            ["@conceal"] = { link = "Grey" },
-            ["@conditional"] = { link = "TSConditional" },
-            ["@constant"] = { link = "TSConstant" },
-            ["@constant.builtin"] = { link = "TSConstBuiltin" },
-            ["@constant.macro"] = { link = "TSConstMacro" },
-            ["@constructor"] = { link = "TSConstructor" },
-            ["@debug"] = { link = "TSDebug" },
-            ["@define"] = { link = "TSDefine" },
-            ["@error"] = { link = "TSError" },
-            ["@exception"] = { link = "TSException" },
-            ["@field"] = { link = "TSField" },
-            ["@float"] = { link = "TSFloat" },
-            ["@function"] = { link = "TSFunction" },
-            ["@function.builtin"] = { link = "TSFuncBuiltin" },
-            ["@function.call"] = { link = "TSFunctionCall" },
-            ["@function.macro"] = { link = "TSFuncMacro" },
-            ["@include"] = { link = "TSInclude" },
-            ["@keyword"] = { link = "TSKeyword" },
-            ["@keyword.function"] = { link = "TSKeywordFunction" },
-            ["@keyword.operator"] = { link = "TSKeywordOperator" },
-            ["@keyword.return"] = { link = "TSKeywordReturn" },
-            ["@label"] = { link = "TSLabel" },
-            ["@math"] = { link = "TSMath" },
-            ["@method"] = { link = "TSMethod" },
-            ["@method.call"] = { link = "TSMethodCall" },
-            ["@namespace"] = { link = "TSNamespace" },
-            ["@none"] = { link = "TSNone" },
-            ["@number"] = { link = "TSNumber" },
-            ["@operator"] = { link = "TSOperator" },
-            ["@parameter"] = { link = "TSParameter" },
-            ["@parameter.reference"] = { link = "TSParameterReference" },
-            ["@preproc"] = { link = "TSPreProc" },
-            ["@property"] = { link = "TSProperty" },
-            ["@punctuation.bracket"] = { link = "TSPunctBracket" },
-            ["@punctuation.delimiter"] = { link = "TSPunctDelimiter" },
-            ["@punctuation.special"] = { link = "TSPunctSpecial" },
-            ["@repeat"] = { link = "TSRepeat" },
-            ["@storageclass"] = { link = "TSStorageClass" },
-            ["@storageclass.lifetime"] = { link = "TSStorageClassLifetime" },
-            ["@strike"] = { link = "TSStrike" },
-            ["@string"] = { link = "TSString" },
-            ["@string.escape"] = { link = "TSStringEscape" },
-            ["@string.regex"] = { link = "TSStringRegex" },
-            ["@string.special"] = { link = "TSStringSpecial" },
-            ["@symbol"] = { link = "TSSymbol" },
-            ["@tag"] = { link = "TSTag" },
-            ["@tag.attribute"] = { link = "TSTagAttribute" },
-            ["@tag.delimiter"] = { link = "TSTagDelimiter" },
-            ["@text"] = { link = "TSText" },
-            ["@text.danger"] = { link = "TSDanger" },
-            ["@text.diff.add"] = { link = "diffAdded" },
-            ["@text.diff.delete"] = { link = "diffRemoved" },
-            ["@text.emphasis"] = { link = "TSEmphasis" },
-            ["@text.environment"] = { link = "TSEnvironment" },
-            ["@text.environment.name"] = { link = "TSEnvironmentName" },
-            ["@text.literal"] = { link = "TSLiteral" },
-            ["@text.math"] = { link = "TSMath" },
-            ["@text.note"] = { link = "TSNote" },
-            ["@text.reference"] = { link = "TSTextReference" },
-            ["@text.strike"] = { link = "TSStrike" },
-            ["@text.strong"] = { link = "TSStrong" },
-            ["@text.title"] = { link = "TSTitle" },
-            ["@text.todo"] = { link = "TSTodo" },
-            ["@text.todo.checked"] = { link = "Green" },
-            ["@text.todo.unchecked"] = { link = "Ignore" },
-            ["@text.underline"] = { link = "TSUnderline" },
-            ["@text.uri"] = { link = "TSURI" },
-            ["@text.warning"] = { link = "TSWarning" },
-            ["@todo"] = { link = "TSTodo" },
-            ["@type"] = { link = "TSType" },
-            ["@type.builtin"] = { link = "TSTypeBuiltin" },
-            ["@type.definition"] = { link = "TSTypeDefinition" },
-            ["@type.qualifier"] = { link = "TSTypeQualifier" },
-            ["@uri"] = { link = "TSURI" },
-            ["@variable"] = { link = "TSVariable" },
-            ["@variable.builtin"] = { link = "TSVariableBuiltin" },
+              ["@annotation"] = { link = "TSAnnotation" },
+              ["@attribute"] = { link = "TSAttribute" },
+              ["@boolean"] = { link = "TSBoolean" },
+              ["@character"] = { link = "TSCharacter" },
+              ["@character.special"] = { link = "TSCharacterSpecial" },
+              ["@comment"] = { link = "TSComment" },
+              ["@conceal"] = { link = "Grey" },
+              ["@conditional"] = { link = "TSConditional" },
+              ["@constant"] = { link = "TSConstant" },
+              ["@constant.builtin"] = { link = "TSConstBuiltin" },
+              ["@constant.macro"] = { link = "TSConstMacro" },
+              ["@constructor"] = { link = "TSConstructor" },
+              ["@debug"] = { link = "TSDebug" },
+              ["@define"] = { link = "TSDefine" },
+              ["@error"] = { link = "TSError" },
+              ["@exception"] = { link = "TSException" },
+              ["@field"] = { link = "TSField" },
+              ["@float"] = { link = "TSFloat" },
+              ["@function"] = { link = "TSFunction" },
+              ["@function.builtin"] = { link = "TSFuncBuiltin" },
+              ["@function.call"] = { link = "TSFunctionCall" },
+              ["@function.macro"] = { link = "TSFuncMacro" },
+              ["@include"] = { link = "TSInclude" },
+              ["@keyword"] = { link = "TSKeyword" },
+              ["@keyword.function"] = { link = "TSKeywordFunction" },
+              ["@keyword.operator"] = { link = "TSKeywordOperator" },
+              ["@keyword.return"] = { link = "TSKeywordReturn" },
+              ["@label"] = { link = "TSLabel" },
+              ["@math"] = { link = "TSMath" },
+              ["@method"] = { link = "TSMethod" },
+              ["@method.call"] = { link = "TSMethodCall" },
+              ["@namespace"] = { link = "TSNamespace" },
+              ["@none"] = { link = "TSNone" },
+              ["@number"] = { link = "TSNumber" },
+              ["@operator"] = { link = "TSOperator" },
+              ["@parameter"] = { link = "TSParameter" },
+              ["@parameter.reference"] = { link = "TSParameterReference" },
+              ["@preproc"] = { link = "TSPreProc" },
+              ["@property"] = { link = "TSProperty" },
+              ["@punctuation.bracket"] = { link = "TSPunctBracket" },
+              ["@punctuation.delimiter"] = { link = "TSPunctDelimiter" },
+              ["@punctuation.special"] = { link = "TSPunctSpecial" },
+              ["@repeat"] = { link = "TSRepeat" },
+              ["@storageclass"] = { link = "TSStorageClass" },
+              ["@storageclass.lifetime"] = { link = "TSStorageClassLifetime" },
+              ["@strike"] = { link = "TSStrike" },
+              ["@string"] = { link = "TSString" },
+              ["@string.escape"] = { link = "TSStringEscape" },
+              ["@string.regex"] = { link = "TSStringRegex" },
+              ["@string.special"] = { link = "TSStringSpecial" },
+              ["@symbol"] = { link = "TSSymbol" },
+              ["@tag"] = { link = "TSTag" },
+              ["@tag.attribute"] = { link = "TSTagAttribute" },
+              ["@tag.delimiter"] = { link = "TSTagDelimiter" },
+              ["@text"] = { link = "TSText" },
+              ["@text.danger"] = { link = "TSDanger" },
+              ["@text.diff.add"] = { link = "diffAdded" },
+              ["@text.diff.delete"] = { link = "diffRemoved" },
+              ["@text.emphasis"] = { link = "TSEmphasis" },
+              ["@text.environment"] = { link = "TSEnvironment" },
+              ["@text.environment.name"] = { link = "TSEnvironmentName" },
+              ["@text.literal"] = { link = "TSLiteral" },
+              ["@text.math"] = { link = "TSMath" },
+              ["@text.note"] = { link = "TSNote" },
+              ["@text.reference"] = { link = "TSTextReference" },
+              ["@text.strike"] = { link = "TSStrike" },
+              ["@text.strong"] = { link = "TSStrong" },
+              ["@text.title"] = { link = "TSTitle" },
+              ["@text.todo"] = { link = "TSTodo" },
+              ["@text.todo.checked"] = { link = "Green" },
+              ["@text.todo.unchecked"] = { link = "Ignore" },
+              ["@text.underline"] = { link = "TSUnderline" },
+              ["@text.uri"] = { link = "TSURI" },
+              ["@text.warning"] = { link = "TSWarning" },
+              ["@todo"] = { link = "TSTodo" },
+              ["@type"] = { link = "TSType" },
+              ["@type.builtin"] = { link = "TSTypeBuiltin" },
+              ["@type.definition"] = { link = "TSTypeDefinition" },
+              ["@type.qualifier"] = { link = "TSTypeQualifier" },
+              ["@uri"] = { link = "TSURI" },
+              ["@variable"] = { link = "TSVariable" },
+              ["@variable.builtin"] = { link = "TSVariableBuiltin" },
 
-            ["@lsp.type.class"] = { link = "TSType" },
-            ["@lsp.type.comment"] = { link = "TSComment" },
-            ["@lsp.type.decorator"] = { link = "TSFunction" },
-            ["@lsp.type.enum"] = { link = "TSType" },
-            ["@lsp.type.enumMember"] = { link = "TSProperty" },
-            ["@lsp.type.events"] = { link = "TSLabel" },
-            ["@lsp.type.function"] = { link = "TSFunction" },
-            ["@lsp.type.interface"] = { link = "TSType" },
-            ["@lsp.type.keyword"] = { link = "TSKeyword" },
-            ["@lsp.type.macro"] = { link = "TSConstMacro" },
-            ["@lsp.type.method"] = { link = "TSMethod" },
-            ["@lsp.type.modifier"] = { link = "TSTypeQualifier" },
-            ["@lsp.type.namespace"] = { link = "TSNamespace" },
-            ["@lsp.type.number"] = { link = "TSNumber" },
-            ["@lsp.type.operator"] = { link = "TSOperator" },
-            ["@lsp.type.parameter"] = { link = "TSParameter" },
-            ["@lsp.type.property"] = { link = "TSProperty" },
-            ["@lsp.type.regexp"] = { link = "TSStringRegex" },
-            ["@lsp.type.string"] = { link = "TSString" },
-            ["@lsp.type.struct"] = { link = "TSType" },
-            ["@lsp.type.type"] = { link = "TSType" },
-            ["@lsp.type.typeParameter"] = { link = "TSTypeDefinition" },
-            ["@lsp.type.variable"] = { link = "TSVariable" },
-          }
-        end,
-        latte = function(colors)
-          return {
-            IblIndent = { fg = colors.mantle },
-            IblScope = { fg = colors.surface1 },
+              ["@lsp.type.class"] = { link = "TSType" },
+              ["@lsp.type.comment"] = { link = "TSComment" },
+              ["@lsp.type.decorator"] = { link = "TSFunction" },
+              ["@lsp.type.enum"] = { link = "TSType" },
+              ["@lsp.type.enumMember"] = { link = "TSProperty" },
+              ["@lsp.type.events"] = { link = "TSLabel" },
+              ["@lsp.type.function"] = { link = "TSFunction" },
+              ["@lsp.type.interface"] = { link = "TSType" },
+              ["@lsp.type.keyword"] = { link = "TSKeyword" },
+              ["@lsp.type.macro"] = { link = "TSConstMacro" },
+              ["@lsp.type.method"] = { link = "TSMethod" },
+              ["@lsp.type.modifier"] = { link = "TSTypeQualifier" },
+              ["@lsp.type.namespace"] = { link = "TSNamespace" },
+              ["@lsp.type.number"] = { link = "TSNumber" },
+              ["@lsp.type.operator"] = { link = "TSOperator" },
+              ["@lsp.type.parameter"] = { link = "TSParameter" },
+              ["@lsp.type.property"] = { link = "TSProperty" },
+              ["@lsp.type.regexp"] = { link = "TSStringRegex" },
+              ["@lsp.type.string"] = { link = "TSString" },
+              ["@lsp.type.struct"] = { link = "TSType" },
+              ["@lsp.type.type"] = { link = "TSType" },
+              ["@lsp.type.typeParameter"] = { link = "TSTypeDefinition" },
+              ["@lsp.type.variable"] = { link = "TSVariable" },
+              CurSearch = { bg = colors.sky },
+              IncSearch = { bg = colors.sky },
+              CursorLineNr = { fg = colors.blue, style = { "bold" } },
+              DashboardFooter = { fg = colors.overlay0 },
+              TreesitterContextBottom = { style = {} },
+              WinSeparator = { fg = colors.overlay0, style = { "bold" } },
+              ["@markup.italic"] = { fg = colors.blue, style = { "italic" } },
+              ["@markup.strong"] = { fg = colors.blue, style = { "bold" } },
+              Headline = { style = { "bold" } },
+              Headline1 = { fg = colors.blue, style = { "bold" } },
+              Headline2 = { fg = colors.pink, style = { "bold" } },
+              Headline3 = { fg = colors.lavender, style = { "bold" } },
+              Headline4 = { fg = colors.green, style = { "bold" } },
+              Headline5 = { fg = colors.peach, style = { "bold" } },
+              Headline6 = { fg = colors.flamingo, style = { "bold" } },
+              rainbow1 = { fg = colors.blue, style = { "bold" } },
+              rainbow2 = { fg = colors.pink, style = { "bold" } },
+              rainbow3 = { fg = colors.lavender, style = { "bold" } },
+              rainbow4 = { fg = colors.green, style = { "bold" } },
+              rainbow5 = { fg = colors.peach, style = { "bold" } },
+              rainbow6 = { fg = colors.flamingo, style = { "bold" } },
+            }
+          end,
+          latte = function(colors)
+            return {
+              IblIndent = { fg = colors.mantle },
+              IblScope = { fg = colors.surface1 },
 
-            LineNr = { fg = colors.surface1 },
-          }
-        end,
-      },
-    },
+              LineNr = { fg = colors.surface1 },
+            }
+          end,
+        },
+      }
+
+      vim.api.nvim_command "colorscheme catppuccin-frappe"
+    end,
   },
   -- NOTE: colorscheme
   {
